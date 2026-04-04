@@ -2,8 +2,6 @@ services:
   db:
     image: postgres:16-alpine
     container_name: compulysis-db
-    profiles:
-      - localdb
     environment:
       POSTGRES_DB: compulysis_db
       POSTGRES_USER: postgres
@@ -23,11 +21,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: compulysis-backend
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/compulysis_db
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production-min-32-chars}
       ENVIRONMENT: production
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost}
       CORS_ALLOW_ORIGIN_REGEX: ""
     ports:
       - "8000:8000"
@@ -37,7 +38,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
     container_name: compulysis-frontend
     depends_on:
       - backend
