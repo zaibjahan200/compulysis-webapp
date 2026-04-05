@@ -3,18 +3,18 @@
 This guide is for your assignment requirement: deploy to AWS EC2 using Dockerfiles and Docker Compose.
 
 The stack in this repository runs:
-- frontend container (Nginx serving React)
-- backend container (FastAPI)
-- postgres container
+- frontend container (React app served by Nginx)
+- backend container (FastAPI web application)
+- postgres container (database)
 
 ## 1) What was configured in this repo
 
 - Backend Dockerfile: `backend/Dockerfile`
 - Frontend Dockerfile: `frontend/Dockerfile`
 - Compose orchestration: `docker-compose.yml`
-- Frontend now proxies `/api/*` to backend internally, so the app can run on one public origin
+- Persistent postgres volume: `postgres_data`
 
-With this setup, users access only port 80 (or 443 with TLS). Backend port 8000 is bound to localhost on EC2.
+With this setup, webpage is available on port 3001 (default), API on 8000, and Postgres on 5432.
 
 ## 2) Create EC2 instance
 
@@ -22,8 +22,9 @@ With this setup, users access only port 80 (or 443 with TLS). Backend port 8000 
 2. Attach a key pair.
 3. Security Group inbound rules:
 	 - TCP 22 from your IP only
-	 - TCP 80 from 0.0.0.0/0
-	 - TCP 443 from 0.0.0.0/0 (if using TLS)
+	 - TCP 3001 from 0.0.0.0/0 (frontend webpage)
+	 - TCP 8000 from 0.0.0.0/0 (or only from your IP for demo)
+	 - TCP 5432 should usually stay closed publicly
 4. (Optional but recommended) Allocate and attach an Elastic IP.
 
 ## 3) SSH into EC2 and install Docker + Compose plugin
@@ -69,9 +70,12 @@ ENVIRONMENT=production
 CORS_ALLOW_ORIGIN_REGEX=
 
 # Set to EC2 URL or your domain.
-BACKEND_CORS_ORIGINS=http://<EC2_PUBLIC_IP>,https://<YOUR_DOMAIN>
+BACKEND_CORS_ORIGINS=http://<EC2_PUBLIC_IP>:3001,https://<YOUR_DOMAIN>
 
-# Frontend build-time API URL. Using same-origin proxy is recommended.
+# Frontend host port (container still listens on 80 internally)
+FRONTEND_PORT=3001
+
+# Frontend uses same-origin '/api/v1' and Nginx proxies to backend container.
 VITE_API_URL=/api/v1
 EOF
 ```
@@ -83,15 +87,17 @@ Notes:
 ## 6) Build and run with Docker Compose
 
 ```bash
-docker compose up -d --build
+docker compose down --remove-orphans
+docker compose up -d --build db backend frontend
 docker compose ps
 ```
 
 View logs:
 
 ```bash
-docker compose logs -f backend
 docker compose logs -f frontend
+docker compose logs -f backend
+docker compose logs -f db
 ```
 
 ## 7) Validate deployment
@@ -99,14 +105,15 @@ docker compose logs -f frontend
 From EC2:
 
 ```bash
-curl http://localhost/
-curl http://localhost/api/v1/docs
+curl http://localhost:3001/
+curl http://localhost:8000/
+curl http://localhost:8000/api/v1/docs
 curl http://localhost:8000/health
 ```
 
 From your laptop/browser:
-- `http://<EC2_PUBLIC_IP>/`
-- `http://<EC2_PUBLIC_IP>/api/v1/docs`
+- `http://<EC2_PUBLIC_IP>:3001/`
+- `http://<EC2_PUBLIC_IP>:8000/api/v1/docs`
 
 ## 8) Useful operations
 
@@ -135,12 +142,7 @@ Stop and remove DB data volume:
 docker compose down -v
 ```
 
-## 9) Optional: add HTTPS with domain + Nginx Proxy Manager or Caddy
-
-For class assignment, HTTP on EC2 IP is often acceptable.
-For production, attach a domain and terminate TLS (Let's Encrypt).
-
-## 10) Production recommendations (after assignment)
+## 9) Production recommendations (after assignment)
 
 1. Use AWS RDS Postgres instead of containerized Postgres.
 2. Store secrets in AWS Systems Manager Parameter Store or AWS Secrets Manager.

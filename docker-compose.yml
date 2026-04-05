@@ -28,10 +28,22 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/compulysis_db
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production-min-32-chars}
       ENVIRONMENT: development
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3001,http://127.0.0.1:3001,http://localhost:80,http://127.0.0.1:80}
       CORS_ALLOW_ORIGIN_REGEX: ""
     ports:
       - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+    container_name: compulysis-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
 
 volumes:
   postgres_data:
