@@ -219,4 +219,18 @@ class OCDModelService:
         return prediction, ordered_probabilities
 
 
-ocd_model_service = OCDModelService()
+class _UnavailableOCDModelService:
+    def __init__(self, startup_error: Exception) -> None:
+        self.startup_error = startup_error
+
+    def predict(self, demographics: Dict[str, Any], responses: Dict[str, Any]) -> Tuple[int, List[float]]:
+        raise RuntimeError(
+            f"OCD model service is unavailable: {self.startup_error}"
+        )
+
+
+try:
+    ocd_model_service = OCDModelService()
+except Exception as exc:
+    # Keep API bootable even if model artifacts are missing/corrupted.
+    ocd_model_service = _UnavailableOCDModelService(exc)
