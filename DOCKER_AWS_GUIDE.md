@@ -14,7 +14,7 @@ The stack in this repository runs:
 - Compose orchestration: `docker-compose.yml`
 - Persistent postgres volume: `postgres_data`
 
-With this setup, webpage is available on port 3001 (default), API on 8000, and Postgres on 5432.
+With this setup, webpage is available on port 8000 (default), API on 8001, and Postgres on 5432.
 
 ## 2) Create EC2 instance
 
@@ -22,8 +22,8 @@ With this setup, webpage is available on port 3001 (default), API on 8000, and P
 2. Attach a key pair.
 3. Security Group inbound rules:
 	 - TCP 22 from your IP only
-	 - TCP 3001 from 0.0.0.0/0 (frontend webpage)
-	 - TCP 8000 from 0.0.0.0/0 (or only from your IP for demo)
+	 - TCP 8000 from 0.0.0.0/0 (frontend webpage)
+	 - TCP 8001 from 0.0.0.0/0 (backend API)
 	 - TCP 5432 should usually stay closed publicly
 4. (Optional but recommended) Allocate and attach an Elastic IP.
 
@@ -70,10 +70,10 @@ ENVIRONMENT=production
 CORS_ALLOW_ORIGIN_REGEX=
 
 # Set to EC2 URL or your domain.
-BACKEND_CORS_ORIGINS=http://<EC2_PUBLIC_IP>:3001,https://<YOUR_DOMAIN>
+BACKEND_CORS_ORIGINS=http://<EC2_PUBLIC_IP>:8000,https://<YOUR_DOMAIN>
 
 # Frontend host port (container still listens on 80 internally)
-FRONTEND_PORT=3001
+FRONTEND_PORT=8000
 
 # Frontend uses same-origin '/api/v1' and Nginx proxies to backend container.
 VITE_API_URL=/api/v1
@@ -105,15 +105,15 @@ docker compose logs -f db
 From EC2:
 
 ```bash
-curl http://localhost:3001/
 curl http://localhost:8000/
-curl http://localhost:8000/api/v1/docs
-curl http://localhost:8000/health
+curl http://localhost:8001/
+curl http://localhost:8001/api/v1/docs
+curl http://localhost:8001/health
 ```
 
 From your laptop/browser:
-- `http://<EC2_PUBLIC_IP>:3001/`
-- `http://<EC2_PUBLIC_IP>:8000/api/v1/docs`
+- `http://<EC2_PUBLIC_IP>:8000/`
+- `http://<EC2_PUBLIC_IP>:8001/api/v1/docs`
 
 ## 8) Useful operations
 
