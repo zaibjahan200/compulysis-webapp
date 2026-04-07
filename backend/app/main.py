@@ -8,6 +8,9 @@ from app.db.base_class import Base
 from app.db.session import SessionLocal
 from app.services.seed_service import seed_initial_data
 import app.models
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -51,6 +54,9 @@ def startup_seed_data():
     db = SessionLocal()
     try:
         seed_initial_data(db)
+    except Exception as exc:
+        # Keep API available even when seed data cannot be inserted.
+        logger.exception("Seed initialization failed: %s", exc)
     finally:
         db.close()
 
