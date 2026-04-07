@@ -14,7 +14,7 @@ The stack in this repository runs:
 - Compose orchestration: `docker-compose.yml`
 - Persistent postgres volume: `postgres_data`
 
-With this setup, webpage is available on port 8000 (default), API on 8001, and Postgres on 5432.
+With this setup, webpage is available on port 8000 (default), API on 8001, and Postgres is internal-only in Docker.
 
 ## 2) Create EC2 instance
 
@@ -24,7 +24,7 @@ With this setup, webpage is available on port 8000 (default), API on 8001, and P
 	 - TCP 22 from your IP only
 	 - TCP 8000 from 0.0.0.0/0 (frontend webpage)
 	 - TCP 8001 from 0.0.0.0/0 (backend API)
-	 - TCP 5432 should usually stay closed publicly
+	 - No inbound rule needed for 5432 (database is internal to Docker network)
 4. (Optional but recommended) Allocate and attach an Elastic IP.
 
 ## 3) SSH into EC2 and install Docker + Compose plugin
