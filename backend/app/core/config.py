@@ -1,6 +1,5 @@
 from pydantic_settings import BaseSettings
 from typing import List
-from pydantic import field_validator
 import os
 from pathlib import Path
 from dotenv import load_dotenv, dotenv_values
@@ -33,7 +32,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: str = os.getenv(
+        "BACKEND_CORS_ORIGINS",
+        "http://localhost:8000,http://127.0.0.1:8000",
+    )
     CORS_ALLOW_ORIGIN_REGEX: str = r"https?://(localhost|127\.0\.0\.1|([a-zA-Z0-9-]+\.)*ngrok-free\.dev)(:\d+)?$"
     
     # Email
@@ -46,14 +48,11 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, value):
+    def get_cors_origins(self) -> List[str]:
+        value = self.BACKEND_CORS_ORIGINS
+
         if value is None or value == "":
             return []
-
-        if isinstance(value, list):
-            return value
 
         if isinstance(value, str):
             trimmed = value.strip()
@@ -70,7 +69,10 @@ class Settings(BaseSettings):
 
             return [origin.strip() for origin in trimmed.split(",") if origin.strip()]
 
-        return value
+        if isinstance(value, list):
+            return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+        return []
     
     class Config:
         env_file = str(BASE_DIR / ".env")
