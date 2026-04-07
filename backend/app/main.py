@@ -9,11 +9,25 @@ from app.db.session import SessionLocal
 from app.services.seed_service import seed_initial_data
 import app.models
 import logging
+from sqlalchemy.exc import SQLAlchemyError
+import time
 
 logger = logging.getLogger(__name__)
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+def ensure_database_ready(max_attempts: int = 10, delay_seconds: int = 2) -> bool:
+    for attempt in range(1, max_attempts + 1):
+        try:
+            Base.metadata.create_all(bind=engine)
+            return True
+        except SQLAlchemyError as exc:
+            logger.warning(
+                "Database initialization attempt %s/%s failed: %s",
+                attempt,
+                max_attempts,
+                exc,
+            )
+            time.sleep(delay_seconds)
+    return False
 
 # Create FastAPI app
 app = FastAPI(
@@ -51,6 +65,11 @@ app.include_router(
 
 @app.on_event("startup")
 def startup_seed_data():
+    db_ready = ensure_database_ready()
+    if not db_ready:
+        logger.error("Database is not ready after retries; API will start but DB-dependent routes may fail.")
+        return
+
     db = SessionLocal()
     try:
         seed_initial_data(db)
