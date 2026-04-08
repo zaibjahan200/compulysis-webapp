@@ -84,11 +84,26 @@ Notes:
 - Compose already defines `DATABASE_URL` for the internal postgres service.
 - If you move to RDS later, override `DATABASE_URL` in `.env`.
 
-## 6) Build and run with Docker Compose
+## 6) Build, push, and run with Docker Hub image
+
+Build the single app image from the root Dockerfile:
+
+```bash
+docker build -t zaibjahan200/compulysis-webapp:latest .
+docker push zaibjahan200/compulysis-webapp:latest
+```
+
+Set the image name for Compose:
+
+```bash
+export APP_IMAGE=zaibjahan200/compulysis-webapp:latest
+```
+
+Then run Compose using the pushed image:
 
 ```bash
 docker compose down --remove-orphans
-docker compose up -d --build db backend frontend
+docker compose up -d db backend frontend
 docker compose ps
 ```
 
@@ -127,7 +142,7 @@ Pull latest code and redeploy:
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose up -d db backend frontend
 ```
 
 Stop stack:
