@@ -25,6 +25,7 @@ COPY backend/ /app/backend/
 
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
 
 EXPOSE 80 8000
 
