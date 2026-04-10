@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     stages {
-        stage('Stage') {
+        stage('build') {
             steps {
                 sh 'rm -rf compulysis-webapp'
                 sh 'git clone https://github.com/zaibjahan200/compulysis-webapp'
@@ -10,7 +10,7 @@ pipeline {
                     // Using -p ensures Jenkins creates a separate stack from your local dev\
                     //work
                     sh 'docker compose -p docker-production down --remove-orphans'
-                    sh 'docker compose -p docker-production up -d'
+                    sh 'docker compose -p docker-production up -d --build'
                 }
             }
         }
