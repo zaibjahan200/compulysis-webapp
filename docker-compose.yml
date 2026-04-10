@@ -47,6 +47,5 @@ services:
       - "8004:80"
     command: ["nginx", "-g", "daemon off;"]
     restart: unless-stopped
-
 volumes:
   postgres_data:
