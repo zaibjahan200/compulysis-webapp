@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     stages {
-        stage('Build') {
+        stage('Stage') {
             steps {
                 sh 'rm -rf compulysis-webapp'
                 sh 'git clone https://github.com/zaibjahan200/compulysis-webapp'
