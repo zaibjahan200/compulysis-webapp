@@ -7,8 +7,9 @@ pipeline {
                 sh 'rm -rf compulysis-webapp'
                 sh 'git clone https://github.com/zaibjahan200/compulysis-webapp'
                 dir('compulysis-webapp') {
-                    sh 'docker compose down --remove-orphans'
-                    sh 'docker compose up -d'
+                    // Using -p ensures Jenkins creates a separate stack from your local dev work
+                    sh 'docker compose -p compulysis-production down --remove-orphans'
+                    sh 'docker compose -p compulysis-production up -d'
                 }
             }
         }
