@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: compulysis-db-jenkins
     environment:
       POSTGRES_DB: compulysis_db
       POSTGRES_USER: postgres
@@ -16,7 +15,6 @@ services:
 
   backend:
     image: zaibjahan200/compulysis-webapp:latest
-    container_name: compulysis-backend-jenkins
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +37,6 @@ services:
 
   frontend:
     image: zaibjahan200/compulysis-webapp:latest
-    container_name: compulysis-frontend-jenkins
     depends_on:
       backend:
         condition: service_healthy
