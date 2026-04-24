@@ -1,12 +1,43 @@
 from email.message import EmailMessage
 import smtplib
 import socket
+import ssl
+import urllib.request
+import json
 from typing import Optional
 import logging
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+def resolve_hostname_via_doh(hostname: str) -> str:
+    """Resolve hostname to IPv4 via Google DNS-over-HTTPS to bypass AWS Lambda DNS bugs."""
+    try:
+        url = f"https://dns.google/resolve?name={hostname}&type=A"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            for answer in data.get('Answer', []):
+                if answer['type'] == 1:  # A record
+                    return answer['data']
+    except Exception as e:
+        logger.warning(f"DoH resolution failed for {hostname}: {e}")
+    return socket.gethostbyname(hostname)  # Fallback
+
+class PatchedSMTP(smtplib.SMTP):
+    """Custom SMTP that uses DoH for DNS resolution to bypass EBUSY errors."""
+    def _get_socket(self, host, port, timeout):
+        ip = resolve_hostname_via_doh(host)
+        logger.info(f"Resolved {host} to {ip} via DoH")
+        return socket.create_connection((ip, port), timeout, self.source_address)
+
+class PatchedSMTP_SSL(smtplib.SMTP_SSL):
+    """Custom SMTP_SSL that uses DoH for DNS resolution to bypass EBUSY errors."""
+    def _get_socket(self, host, port, timeout):
+        ip = resolve_hostname_via_doh(host)
+        logger.info(f"Resolved {host} to {ip} via DoH")
+        return socket.create_connection((ip, port), timeout, self.source_address)
 
 class EmailService:
     @staticmethod
@@ -69,8 +100,8 @@ class EmailService:
 
         try:
             # Try standard SMTP (Port 587) first
-            logger.info(f"Attempting SMTP connection to {host}:587")
-            with smtplib.SMTP(host, 587, timeout=15) as server:
+            logger.info(f"Attempting SMTP connection to {host}:587 via PatchedSMTP")
+            with PatchedSMTP(host, 587, timeout=15) as server:
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
@@ -83,7 +114,7 @@ class EmailService:
             logger.warning(f"SMTP on port 587 failed: {str(exc1)}. Trying SMTP_SSL on port 465...")
             try:
                 # Fallback to SMTP_SSL (Port 465) if 587 fails (e.g., due to Vercel port blocking)
-                with smtplib.SMTP_SSL(host, 465, timeout=15) as server:
+                with PatchedSMTP_SSL(host, 465, timeout=15) as server:
                     server.login(user, password)
                     server.send_message(message)
                     logger.info("Email sent successfully via SSL port 465.")
