@@ -1,8 +1,26 @@
 from email.message import EmailMessage
 import smtplib
+import socket
 from typing import Optional
 
 from app.core.config import settings
+
+# --- VERCEL PYTHON 3.12 BUGFIX ---
+# Vercel's AWS Lambda Python 3.12 runtime has a bug where dual-stack (IPv4+IPv6) 
+# DNS resolution throws "OSError: [Errno 16] Device or resource busy".
+# We monkey-patch socket.getaddrinfo to force IPv4 (AF_INET), which bypasses it.
+_orig_getaddrinfo = socket.getaddrinfo
+
+def _ipv4_only_getaddrinfo(*args, **kwargs):
+    args_list = list(args)
+    if len(args_list) >= 3 and args_list[2] == 0:
+        args_list[2] = socket.AF_INET
+    elif 'family' in kwargs and kwargs['family'] == 0:
+        kwargs['family'] = socket.AF_INET
+    return _orig_getaddrinfo(*args_list, **kwargs)
+
+socket.getaddrinfo = _ipv4_only_getaddrinfo
+# ---------------------------------
 
 
 class EmailService:
