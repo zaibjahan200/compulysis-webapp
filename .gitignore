@@ -19,6 +19,5 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 .vscode/
-
-
+*.md
 scripts/

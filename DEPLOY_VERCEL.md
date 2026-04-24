@@ -36,7 +36,7 @@ Set these in Vercel Project Settings -> Environment Variables:
 - `CORS_ALLOW_ORIGIN_REGEX` = empty
 
 Database vars:
-- Add Vercel Postgres from Storage and link it to backend project.
+- Add a Postgres provider from Storage and link it to backend project (recommended: Neon, Supabase, or Prisma Postgres).
 - Current code accepts `DATABASE_URL` or `POSTGRES_URL`.
 
 ### First-Time Database Setup (No Existing DB)
@@ -44,12 +44,14 @@ Database vars:
 If you currently have no database, do this first:
 
 1. Open Vercel Dashboard -> your backend project.
-2. Go to Storage -> Create Database -> Postgres.
+2. Go to Storage and choose a Postgres provider (recommended: Neon, Supabase, or Prisma Postgres).
 3. Choose region close to your users (and ideally same region as backend).
 4. Link the new Postgres instance to your backend project.
-5. Vercel will auto-inject Postgres environment variables into backend project.
+5. Vercel will inject provider connection variables into backend project.
 
-Important vars typically added by Vercel Postgres:
+Note: a Storage name like `supabase-aquamarine-compass` is the resource label shown in Vercel/Supabase dashboards. Your backend should use injected env vars (`POSTGRES_URL` or `DATABASE_URL`), not the resource label itself.
+
+Important vars typically added for Postgres providers:
 - `POSTGRES_URL`
 - `POSTGRES_PRISMA_URL`
 - `POSTGRES_URL_NON_POOLING`
@@ -58,12 +60,14 @@ Important vars typically added by Vercel Postgres:
 - `POSTGRES_PASSWORD`
 - `POSTGRES_DATABASE`
 
+If your provider only gives `DATABASE_URL`, set `DATABASE_URL` directly in backend environment variables.
+
 Your backend reads DB URL in this order:
 1. `DATABASE_URL`
 2. `POSTGRES_URL`
 3. local fallback URL (localhost, only for local dev)
 
-So for Vercel deployment, linking Postgres is enough. Optionally, set `DATABASE_URL` explicitly to the same value as `POSTGRES_URL`.
+So for Vercel deployment, linking a Postgres provider is enough. Optionally, set `DATABASE_URL` explicitly to the same value as `POSTGRES_URL`.
 
 After linking DB:
 1. Redeploy backend project.
@@ -131,7 +135,7 @@ In each Vercel project:
 - Ensure frontend points to correct backend URL via `VITE_API_URL`.
 
 3. DB connection failures
-- Ensure Vercel Postgres is linked to backend project.
+- Ensure your selected Postgres provider is linked to backend project.
 - Confirm DB env vars exist in backend environment.
 - Check `/health/db` and backend runtime logs.
 
