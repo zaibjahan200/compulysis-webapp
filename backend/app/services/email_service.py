@@ -182,6 +182,7 @@ class EmailService:
         password = settings.SMTP_PASSWORD
 
         # --- attempt 1: STARTTLS on port 587 ---
+        first_error = None
         try:
             logger.info(f"Attempting _RawSMTP connection to {host}:587")
             with _RawSMTP(host, 587, timeout=15) as server:
@@ -193,6 +194,7 @@ class EmailService:
                 logger.info("Email sent successfully via port 587.")
                 return
         except Exception as exc1:
+            first_error = exc1
             logger.warning(f"Port 587 failed: {exc1}")
 
         # --- attempt 2: implicit SSL on port 465 ---
@@ -204,6 +206,6 @@ class EmailService:
                 logger.info("Email sent successfully via SSL port 465.")
                 return
         except Exception as exc2:
-            error_msg = f"Failed to send email. Port 587 error: {exc1}. Port 465 error: {exc2}."
+            error_msg = f"Failed to send email. Port 587 error: {first_error}. Port 465 error: {exc2}."
             logger.error(error_msg)
             raise RuntimeError(error_msg) from exc2

@@ -108,7 +108,12 @@ class Settings:
         # Email
         self.SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower().strip().strip("'\"") == "true"
         self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587").strip().strip("'\""))
-        self.SMTP_HOST: str = os.getenv("SMTP_HOST", "").strip().strip("'\"")
+        _smtp_host = os.getenv("SMTP_HOST", "").strip().strip("'\"")
+        # Users sometimes paste "https://smtp.gmail.com" — strip the scheme.
+        for prefix in ("https://", "http://"):
+            if _smtp_host.startswith(prefix):
+                _smtp_host = _smtp_host[len(prefix):]
+        self.SMTP_HOST: str = _smtp_host.rstrip("/")
         self.SMTP_USER: str = os.getenv("SMTP_USER", "").strip().strip("'\"")
         self.SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip().strip("'\"")
 
