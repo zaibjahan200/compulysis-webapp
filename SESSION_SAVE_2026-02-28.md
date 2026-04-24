@@ -1,7 +1,7 @@
 # Session Save — 2026-02-28
 
 ## Workspace
-- Root: `d:\COMSATS\COMSATS\Projects\Compulysis Project\compulysis-webapp`
+- Root: `d:\COMSATS\COMSATS\Projects\Compulysis Project\compulysis`
 - OS: Windows
 
 ## Current editor context
@@ -11,7 +11,7 @@
 - Python environment activation succeeded multiple times via:
   - `.venv\Scripts\Activate.ps1`
 - Latest failing command (from `backend` cwd):
-  - `"D:/COMSATS/COMSATS/Projects/Compulysis Project/compulysis-webapp/.venv/Scripts/python.exe" -c "from backend.app.db.session import engine; engine.connect(); print('Database connection successful!')"`
+  - `"D:/COMSATS/COMSATS/Projects/Compulysis Project/compulysis/.venv/Scripts/python.exe" -c "from backend.app.db.session import engine; engine.connect(); print('Database connection successful!')"`
   - Exit code: `1`
 
 ## Project structure highlights

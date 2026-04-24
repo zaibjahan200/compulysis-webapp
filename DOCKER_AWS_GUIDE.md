@@ -54,7 +54,7 @@ docker compose version
 
 ```bash
 git clone <YOUR_REPO_URL>.git
-cd compulysis-webapp
+cd compulysis
 ```
 
 ## 5) Set production environment values
@@ -89,14 +89,14 @@ Notes:
 Build the single app image from the root Dockerfile:
 
 ```bash
-docker build -t zaibjahan200/compulysis-webapp:latest .
-docker push zaibjahan200/compulysis-webapp:latest
+docker build -t zaibjahan200/compulysis:latest .
+docker push zaibjahan200/compulysis:latest
 ```
 
 Set the image name for Compose:
 
 ```bash
-export APP_IMAGE=zaibjahan200/compulysis-webapp:latest
+export APP_IMAGE=zaibjahan200/compulysis:latest
 ```
 
 Then run Compose using the pushed image:

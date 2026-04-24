@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.api.endpoints import auth
 from app.api.endpoints import clinical
@@ -10,6 +11,7 @@ from app.services.seed_service import seed_initial_data
 import app.models
 import logging
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
 import time
 
 logger = logging.getLogger(__name__)
@@ -98,3 +100,27 @@ async def health_check():
         "status": "healthy",
         "environment": settings.ENVIRONMENT
     }
+
+
+@app.get("/health/db")
+async def health_db_check():
+    """Database connectivity health endpoint"""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "environment": settings.ENVIRONMENT,
+        }
+    except Exception as exc:
+        logger.exception("Database health check failed: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": "database_connection_failed",
+            },
+        )

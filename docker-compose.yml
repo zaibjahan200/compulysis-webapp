@@ -14,7 +14,7 @@ services:
       retries: 5
 
   backend:
-    image: zaibjahan200/compulysis-webapp:latest
+    image: zaibjahan200/compulysis:latest
     pull_policy: always
     depends_on:
       db:
@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: zaibjahan200/compulysis-webapp:latest
+    image: zaibjahan200/compulysis:latest
     pull_policy: always
     depends_on:
       backend:

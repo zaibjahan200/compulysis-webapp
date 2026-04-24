@@ -4,8 +4,8 @@ Frontend is built with React + Vite and is now integrated with the root FastAPI 
 
 ## Project structure
 
-- Frontend: `compulysis-webapp/frontend`
-- Backend (FastAPI): `compulysis-webapp/backend`
+- Frontend: `compulysis/frontend`
+- Backend (FastAPI): `compulysis/backend`
 
 ## 1) Start PostgreSQL
 
@@ -22,7 +22,7 @@ Example:
 
 ## 2) Run backend (FastAPI)
 
-From `compulysis-webapp/backend`:
+From `compulysis/backend`:
 
 1. Activate your virtual environment (or create one).
 2. Install requirements:
@@ -39,7 +39,7 @@ Default seeded login:
 
 ## 3) Run frontend
 
-From `compulysis-webapp/frontend`:
+From `compulysis/frontend`:
 
 1. Install dependencies:
 	- `npm install`
