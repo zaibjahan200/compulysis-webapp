@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
+from functools import lru_cache
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
@@ -8,12 +10,40 @@ from app.db.session import get_db
 from app.models.user import User
 from app.models.patient import Patient
 from app.models.assessment import Assessment
-from app.services.ocd_model_service import ocd_model_service
-from app.services.data_explorer_csv_service import data_explorer_csv_service
 from app.services.email_service import EmailService
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+class _UnavailableService:
+    def __init__(self, service_name: str, startup_error: Exception) -> None:
+        self.service_name = service_name
+        self.startup_error = startup_error
+
+    def __getattr__(self, _name: str):
+        raise RuntimeError(f"{self.service_name} is unavailable: {self.startup_error}")
+
+
+@lru_cache(maxsize=1)
+def get_ocd_model_service():
+    try:
+        from app.services.ocd_model_service import ocd_model_service as service
+        return service
+    except Exception as exc:
+        logger.exception("Failed to initialize OCD model service: %s", exc)
+        return _UnavailableService("OCD model service", exc)
+
+
+@lru_cache(maxsize=1)
+def get_data_explorer_csv_service():
+    try:
+        from app.services.data_explorer_csv_service import data_explorer_csv_service as service
+        return service
+    except Exception as exc:
+        logger.exception("Failed to initialize data explorer CSV service: %s", exc)
+        return _UnavailableService("Data explorer CSV service", exc)
 
 DIMENSION_KEYS = [
     "Contamination_and_Washing",
@@ -284,7 +314,7 @@ def submit_assessment(
     avg_score = round(total_score / len(DIMENSION_KEYS), 2)
 
     try:
-        prediction, prediction_proba = ocd_model_service.predict(normalized_demographics, normalized_responses)
+        prediction, prediction_proba = get_ocd_model_service().predict(normalized_demographics, normalized_responses)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Model prediction failed: {str(exc)}")
 
@@ -816,7 +846,7 @@ def explorer_demographics(
     source = payload.get("source")
     filters = payload.get("filters")
     if source == "research":
-        return data_explorer_csv_service.demographics(filters)
+        return get_data_explorer_csv_service().demographics(filters)
 
     query = db.query(Patient).filter(Patient.status == "Active")
     if source != "research":
@@ -913,7 +943,7 @@ def explorer_ocd_analysis(
     source = payload.get("source")
     filters = payload.get("filters")
     if source == "research":
-        return data_explorer_csv_service.ocd_analysis(filters)
+        return get_data_explorer_csv_service().ocd_analysis(filters)
 
     query = db.query(Assessment)
     if source != "research":
@@ -989,7 +1019,7 @@ def explorer_correlations(
     source = payload.get("source")
     filters = payload.get("filters")
     if source == "research":
-        return data_explorer_csv_service.correlations(filters)
+        return get_data_explorer_csv_service().correlations(filters)
 
     features = ["Age", "Contamination", "Checking", "Ordering", "Intrusive Thoughts", "Mental Rituals"]
     correlations = []
@@ -1019,7 +1049,7 @@ def explorer_counts(
     source = payload.get("source")
     filters = payload.get("filters")
     if source == "research":
-        return data_explorer_csv_service.counts(filters)
+        return get_data_explorer_csv_service().counts(filters)
 
     query = db.query(Patient).filter(Patient.status == "Active")
     if source != "research":
@@ -1034,4 +1064,4 @@ def model_lab_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_psychologist),
 ):
-    return data_explorer_csv_service.model_lab_summary()
+    return get_data_explorer_csv_service().model_lab_summary()
