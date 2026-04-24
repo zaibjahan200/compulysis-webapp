@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv, dotenv_values
 import json
+from urllib.parse import quote_plus
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env", override=True)
@@ -18,17 +19,39 @@ for key, value in fallback_env.items():
         os.environ[key] = str(value)
 
 
+def resolve_database_url() -> str:
+    direct_url = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("DATABASE_POSTGRES_URL")
+        or os.getenv("POSTGRES_URL")
+        or os.getenv("STORAGE_URL")
+    )
+    if direct_url:
+        return direct_url
+
+    user = os.getenv("DATABASE_POSTGRES_USER") or os.getenv("POSTGRES_USER")
+    password = os.getenv("DATABASE_POSTGRES_PASSWORD") or os.getenv("POSTGRES_PASSWORD")
+    host = os.getenv("DATABASE_POSTGRES_HOST") or os.getenv("POSTGRES_HOST")
+    database = os.getenv("DATABASE_POSTGRES_DATABASE") or os.getenv("POSTGRES_DATABASE")
+    port = os.getenv("DATABASE_POSTGRES_PORT") or os.getenv("POSTGRES_PORT") or "5432"
+
+    if user and password and host and database:
+        encoded_password = quote_plus(password)
+        sslmode = os.getenv("DATABASE_POSTGRES_SSLMODE") or os.getenv("POSTGRES_SSLMODE")
+        if not sslmode:
+            sslmode = "disable" if host in {"localhost", "127.0.0.1", "db"} else "require"
+        return f"postgresql://{user}:{encoded_password}@{host}:{port}/{database}?sslmode={sslmode}"
+
+    return "postgresql://postgres:postgres@localhost:5432/compulysis_db"
+
+
 class Settings(BaseSettings):
     # Project Info
     PROJECT_NAME: str = "Compulysis OCD Risk Analyzer"
     API_V1_STR: str = "/api/v1"
     
     # Database
-    DATABASE_URL: str = (
-        os.getenv("DATABASE_URL")
-        or os.getenv("POSTGRES_URL")
-        or "postgresql://postgres:postgres@localhost:5432/compulysis_db"
-    )
+    DATABASE_URL: str = resolve_database_url()
     
     # JWT
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")

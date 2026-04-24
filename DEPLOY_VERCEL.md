@@ -60,12 +60,18 @@ Important vars typically added for Postgres providers:
 - `POSTGRES_PASSWORD`
 - `POSTGRES_DATABASE`
 
+If you set Custom Prefix to `DATABASE`, Vercel may create vars like `DATABASE_POSTGRES_HOST`, `DATABASE_POSTGRES_PASSWORD`, and `DATABASE_POSTGRES_DATABASE`. The backend supports these and can build `DATABASE_URL` automatically.
+
 If your provider only gives `DATABASE_URL`, set `DATABASE_URL` directly in backend environment variables.
+If you used a custom prefix like `STORAGE`, the URL may be `STORAGE_URL`; the backend supports that too.
 
 Your backend reads DB URL in this order:
 1. `DATABASE_URL`
-2. `POSTGRES_URL`
-3. local fallback URL (localhost, only for local dev)
+2. `DATABASE_POSTGRES_URL`
+3. `POSTGRES_URL`
+4. `STORAGE_URL`
+5. auto-build from `DATABASE_POSTGRES_*` component vars
+6. local fallback URL (localhost, only for local dev)
 
 So for Vercel deployment, linking a Postgres provider is enough. Optionally, set `DATABASE_URL` explicitly to the same value as `POSTGRES_URL`.
 
@@ -80,7 +86,7 @@ After linking DB:
 2. Set Root Directory to `frontend`.
 3. Framework Preset: `Vite`.
 4. Add environment variable:
-   - `VITE_API_URL` = `https://<your-backend-project>.vercel.app/api/v1`
+   - `VITE_API_URL` = `https://compulysis-b.vercel.app/api/v1`
 5. Deploy.
 
 ## 3. Health Observation and Monitoring
