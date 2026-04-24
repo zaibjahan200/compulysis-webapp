@@ -1,0 +1,49 @@
+# Vercel bundle exclusions — keep the deployment under the 250 MB uncompressed limit.
+# Virtual environments and compiled bytecode
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Local config and secrets — never ship to Vercel
+.env
+.env.*
+!.env.aws.example
+
+# Tests and dev tooling
+.pytest_cache/
+tests/
+test_*.py
+*_test.py
+pytest.ini
+setup.cfg
+.coveragerc
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Alembic migration files (not needed at runtime)
+alembic/
+alembic.ini
+
+# Notebooks and scratch
+*.ipynb
+*.ipynb_checkpoints
+
+# Git internals
+.git/
+.gitignore
+.gitattributes
+
+# Docker artifacts (not needed on Vercel)
+Dockerfile
+.dockerignore
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo

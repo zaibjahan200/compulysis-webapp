@@ -282,7 +282,7 @@ class DataExplorerCsvService:
         f1 = f1_score(true_labels, pred_labels, labels=labels, average="weighted", zero_division=0) * 100
         matrix = confusion_matrix(true_labels, pred_labels, labels=labels).tolist()
 
-        model = ocd_model_service._artifacts.model
+        model = ocd_model_service._artifacts_unsafe.model
         coef = np.abs(np.asarray(model.coef_)).mean(axis=0)
 
         feature_names = [
