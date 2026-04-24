@@ -481,7 +481,7 @@ def mark_report_reviewed(
 
 
 @router.post("/reports/{report_id}/email")
-def email_report(
+async def email_report(
     report_id: str,
     payload: Dict[str, Any],
     db: Session = Depends(get_db),
