@@ -34,6 +34,10 @@ def resolve_database_url() -> str:
         or os.getenv("STORAGE_URL")
     )
     if direct_url:
+        # SQLAlchemy 2.x dropped the short `postgres://` dialect alias.
+        # Vercel/Neon/Supabase providers inject URLs with that scheme, so normalise it.
+        if direct_url.startswith("postgres://"):
+            direct_url = "postgresql://" + direct_url[len("postgres://"):]
         return direct_url
 
     user = os.getenv("DATABASE_POSTGRES_USER") or os.getenv("POSTGRES_USER")
