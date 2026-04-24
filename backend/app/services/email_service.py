@@ -2,26 +2,11 @@ from email.message import EmailMessage
 import smtplib
 import socket
 from typing import Optional
+import logging
 
 from app.core.config import settings
 
-# --- VERCEL PYTHON 3.12 BUGFIX ---
-# Vercel's AWS Lambda Python 3.12 runtime has a bug where dual-stack (IPv4+IPv6) 
-# DNS resolution throws "OSError: [Errno 16] Device or resource busy".
-# We monkey-patch socket.getaddrinfo to force IPv4 (AF_INET), which bypasses it.
-_orig_getaddrinfo = socket.getaddrinfo
-
-def _ipv4_only_getaddrinfo(*args, **kwargs):
-    args_list = list(args)
-    if len(args_list) >= 3 and args_list[2] == 0:
-        args_list[2] = socket.AF_INET
-    elif 'family' in kwargs and kwargs['family'] == 0:
-        kwargs['family'] = socket.AF_INET
-    return _orig_getaddrinfo(*args_list, **kwargs)
-
-socket.getaddrinfo = _ipv4_only_getaddrinfo
-# ---------------------------------
-
+logger = logging.getLogger(__name__)
 
 class EmailService:
     @staticmethod
@@ -78,13 +63,32 @@ class EmailService:
         message.set_content(text_body)
         message.add_alternative(html_body, subtype="html")
 
+        host = settings.SMTP_HOST
+        user = settings.SMTP_USER
+        password = settings.SMTP_PASSWORD
+
         try:
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+            # Try standard SMTP (Port 587) first
+            logger.info(f"Attempting SMTP connection to {host}:587")
+            with smtplib.SMTP(host, 587, timeout=15) as server:
                 server.ehlo()
-                if settings.SMTP_TLS:
-                    server.starttls()
-                    server.ehlo()
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.starttls()
+                server.ehlo()
+                server.login(user, password)
                 server.send_message(message)
-        except smtplib.SMTPException as exc:
-            raise RuntimeError(f"Failed to send email: {str(exc)}") from exc
+                logger.info("Email sent successfully via port 587.")
+                return
+
+        except Exception as exc1:
+            logger.warning(f"SMTP on port 587 failed: {str(exc1)}. Trying SMTP_SSL on port 465...")
+            try:
+                # Fallback to SMTP_SSL (Port 465) if 587 fails (e.g., due to Vercel port blocking)
+                with smtplib.SMTP_SSL(host, 465, timeout=15) as server:
+                    server.login(user, password)
+                    server.send_message(message)
+                    logger.info("Email sent successfully via SSL port 465.")
+                    return
+            except Exception as exc2:
+                error_msg = f"Failed to send email. Port 587 error: {exc1}. Port 465 error: {exc2}."
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from exc2
