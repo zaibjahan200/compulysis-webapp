@@ -106,11 +106,11 @@ class Settings:
         )
 
         # Email
-        self.SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
-        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-        self.SMTP_HOST: str = os.getenv("SMTP_HOST", "")
-        self.SMTP_USER: str = os.getenv("SMTP_USER", "")
-        self.SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+        self.SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower().strip().strip("'\"") == "true"
+        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587").strip().strip("'\""))
+        self.SMTP_HOST: str = os.getenv("SMTP_HOST", "").strip().strip("'\"")
+        self.SMTP_USER: str = os.getenv("SMTP_USER", "").strip().strip("'\"")
+        self.SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip().strip("'\"")
 
         # Environment
         self.ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
