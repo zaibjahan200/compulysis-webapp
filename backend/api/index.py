@@ -2,25 +2,21 @@ import traceback
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-# Define at module scope first - Vercel requires these symbols to be defined
-# at import time before any conditional logic
-app = None
-application = None
-handler = None
+# Define a concrete top-level ASGI app so Vercel's static detector always finds it.
+app = FastAPI(title="Compulysis API - Bootstrap")
 
-# Try to import the real app from app.main
+_startup_exc = None
+_startup_trace = None
+
 try:
-    from app.main import app as _resolved_app
-    app = _resolved_app
+    from app.main import app as real_app
+    app = real_app
 except Exception as exc:
-    import sys
-    startup_trace = traceback.format_exc()
+    _startup_exc = exc
+    _startup_trace = traceback.format_exc()
     print("[STARTUP_ERROR] Failed to import app.main")
-    print(startup_trace)
-    
-    # Create minimal fallback app that returns diagnostic info
-    app = FastAPI(title="Compulysis API - Startup Failed")
-    
+    print(_startup_trace)
+
     @app.get("/")
     @app.get("/health")
     async def root():
@@ -29,11 +25,11 @@ except Exception as exc:
             content={
                 "status": "error",
                 "error": "startup_import_failed",
-                "message": str(exc),
-                "details": startup_trace,
-            }
+                "message": str(_startup_exc),
+                "details": _startup_trace,
+            },
         )
-    
+
     @app.get("/{path:path}")
     async def catch_all(path: str):
         return JSONResponse(
@@ -41,15 +37,12 @@ except Exception as exc:
             content={
                 "status": "error",
                 "error": "startup_import_failed",
-                "message": str(exc),
+                "message": str(_startup_exc),
                 "path": f"/{path}",
-                "details": startup_trace,
-            }
+                "details": _startup_trace,
+            },
         )
 
-# Vercel looks for one of these exact top-level callables
+# Export all recognized names as ASGI app objects.
 application = app
-
-async def handler(scope, receive, send):
-    """ASGI handler for Vercel"""
-    await app(scope, receive, send)
+handler = app
