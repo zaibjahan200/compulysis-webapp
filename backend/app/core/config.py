@@ -1,10 +1,17 @@
-from pydantic_settings import BaseSettings
 from typing import List
 import os
 from pathlib import Path
-from dotenv import load_dotenv, dotenv_values
 import json
 from urllib.parse import quote_plus
+
+try:
+    from dotenv import load_dotenv, dotenv_values
+except ModuleNotFoundError:
+    def load_dotenv(*_args, **_kwargs):
+        return False
+
+    def dotenv_values(*_args, **_kwargs):
+        return {}
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / ".env", override=True)
@@ -45,35 +52,39 @@ def resolve_database_url() -> str:
     return "postgresql://postgres:postgres@localhost:5432/compulysis_db"
 
 
-class Settings(BaseSettings):
-    # Project Info
-    PROJECT_NAME: str = "Compulysis OCD Risk Analyzer"
-    API_V1_STR: str = "/api/v1"
-    
-    # Database
-    DATABASE_URL: str = resolve_database_url()
-    
-    # JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
-    
-    # CORS
-    BACKEND_CORS_ORIGINS: str = os.getenv(
-        "BACKEND_CORS_ORIGINS",
-        "http://localhost:8000,http://127.0.0.1:8000",
-    )
-    CORS_ALLOW_ORIGIN_REGEX: str = r"https?://(localhost|127\.0\.0\.1|([a-zA-Z0-9-]+\.)*ngrok-free\.dev)(:\d+)?$"
-    
-    # Email
-    SMTP_TLS: bool = True
-    SMTP_PORT: int = 587
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
-    SMTP_USER: str = os.getenv("SMTP_USER", "")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    
-    # Environment
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+class Settings:
+    def __init__(self) -> None:
+        # Project Info
+        self.PROJECT_NAME: str = "Compulysis OCD Risk Analyzer"
+        self.API_V1_STR: str = "/api/v1"
+
+        # Database
+        self.DATABASE_URL: str = resolve_database_url()
+
+        # JWT
+        self.SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
+        self.ALGORITHM: str = "HS256"
+        self.ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
+
+        # CORS
+        self.BACKEND_CORS_ORIGINS: str = os.getenv(
+            "BACKEND_CORS_ORIGINS",
+            "http://localhost:8000,http://127.0.0.1:8000",
+        )
+        self.CORS_ALLOW_ORIGIN_REGEX: str = os.getenv(
+            "CORS_ALLOW_ORIGIN_REGEX",
+            r"https?://(localhost|127\.0\.0\.1|([a-zA-Z0-9-]+\.)*ngrok-free\.dev)(:\d+)?$",
+        )
+
+        # Email
+        self.SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
+        self.SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+        self.SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+        self.SMTP_USER: str = os.getenv("SMTP_USER", "")
+        self.SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+
+        # Environment
+        self.ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
     def get_cors_origins(self) -> List[str]:
         value = self.BACKEND_CORS_ORIGINS
@@ -101,10 +112,4 @@ class Settings(BaseSettings):
 
         return []
     
-    class Config:
-        env_file = str(BASE_DIR / ".env")
-        case_sensitive = True
-        extra = "ignore"
-
-
 settings = Settings()

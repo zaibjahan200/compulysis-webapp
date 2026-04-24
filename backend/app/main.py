@@ -13,10 +13,20 @@ import logging
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 import time
+import os
 
 logger = logging.getLogger(__name__)
 
+def _is_serverless_runtime() -> bool:
+    return bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+
 def ensure_database_ready(max_attempts: int = 10, delay_seconds: int = 2) -> bool:
+    if _is_serverless_runtime():
+        # Avoid long cold-start delays on serverless platforms.
+        max_attempts = 1
+        delay_seconds = 0
+
     for attempt in range(1, max_attempts + 1):
         try:
             Base.metadata.create_all(bind=engine)
@@ -28,7 +38,8 @@ def ensure_database_ready(max_attempts: int = 10, delay_seconds: int = 2) -> boo
                 max_attempts,
                 exc,
             )
-            time.sleep(delay_seconds)
+            if delay_seconds > 0:
+                time.sleep(delay_seconds)
     return False
 
 # Create FastAPI app
