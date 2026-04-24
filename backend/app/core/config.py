@@ -2,7 +2,7 @@ from typing import List
 import os
 from pathlib import Path
 import json
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse, urlencode, parse_qs, urlunparse
 
 try:
     from dotenv import load_dotenv, dotenv_values
@@ -26,6 +26,35 @@ for key, value in fallback_env.items():
         os.environ[key] = str(value)
 
 
+# psycopg2 only accepts a known set of libpq connection parameters as query params.
+# Providers like Supabase inject extras (e.g. supa=base-pooler.x) that make psycopg2
+# raise "invalid connection option". We keep only the safe known set.
+_PSYCOPG2_ALLOWED_PARAMS = {
+    "sslmode", "sslcert", "sslkey", "sslrootcert", "sslcrl",
+    "connect_timeout", "application_name", "fallback_application_name",
+    "keepalives", "keepalives_idle", "keepalives_interval", "keepalives_count",
+    "options", "service", "target_session_attrs",
+}
+
+
+def _sanitise_db_url(url: str) -> str:
+    """Normalise scheme and strip provider-specific query params psycopg2 can't handle."""
+    # SQLAlchemy 2.x dropped the short postgres:// alias.
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+
+    parsed = urlparse(url)
+    if parsed.query:
+        filtered = {
+            k: v for k, v in parse_qs(parsed.query, keep_blank_values=True).items()
+            if k in _PSYCOPG2_ALLOWED_PARAMS
+        }
+        clean_query = urlencode(filtered, doseq=True)
+        parsed = parsed._replace(query=clean_query)
+
+    return urlunparse(parsed)
+
+
 def resolve_database_url() -> str:
     direct_url = (
         os.getenv("DATABASE_URL")
@@ -34,11 +63,7 @@ def resolve_database_url() -> str:
         or os.getenv("STORAGE_URL")
     )
     if direct_url:
-        # SQLAlchemy 2.x dropped the short `postgres://` dialect alias.
-        # Vercel/Neon/Supabase providers inject URLs with that scheme, so normalise it.
-        if direct_url.startswith("postgres://"):
-            direct_url = "postgresql://" + direct_url[len("postgres://"):]
-        return direct_url
+        return _sanitise_db_url(direct_url)
 
     user = os.getenv("DATABASE_POSTGRES_USER") or os.getenv("POSTGRES_USER")
     password = os.getenv("DATABASE_POSTGRES_PASSWORD") or os.getenv("POSTGRES_PASSWORD")
