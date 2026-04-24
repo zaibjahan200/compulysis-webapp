@@ -9,9 +9,8 @@ try:
 except Exception as exc:
 	_resolved_app = FastAPI(title="Compulysis API (Startup Error)")
 	startup_trace = traceback.format_exc()
-
-	@_resolved_app.get("/{path:path}")
-	async def startup_error(path: str):
+    print("[Compulysis Startup Error] Failed to import app.main")
+    print(startup_trace)
 		return JSONResponse(
 			status_code=500,
 			content={

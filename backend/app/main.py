@@ -2,26 +2,41 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
-from app.api.endpoints import auth
-from app.api.endpoints import clinical
-from app.db.session import engine
-from app.db.base_class import Base
-from app.db.session import SessionLocal
-from app.services.seed_service import seed_initial_data
 import app.models
 import logging
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import text
 import time
 import os
 
 logger = logging.getLogger(__name__)
+
+engine = None
+SessionLocal = None
+Base = None
+db_startup_error = None
+
+try:
+    from app.db.session import engine as _engine, SessionLocal as _SessionLocal
+    from app.db.base_class import Base as _Base
+    from app.services.seed_service import seed_initial_data
+    from sqlalchemy import text
+except Exception as exc:
+    db_startup_error = exc
+    logger.exception("Database modules failed to import: %s", exc)
+else:
+    engine = _engine
+    SessionLocal = _SessionLocal
+    Base = _Base
+
 
 def _is_serverless_runtime() -> bool:
     return bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
 
 def ensure_database_ready(max_attempts: int = 10, delay_seconds: int = 2) -> bool:
+    if not engine or not Base:
+        logger.error("Database engine/base unavailable at startup: %s", db_startup_error)
+        return False
+
     if _is_serverless_runtime():
         # Avoid long cold-start delays on serverless platforms.
         max_attempts = 1
@@ -31,7 +46,7 @@ def ensure_database_ready(max_attempts: int = 10, delay_seconds: int = 2) -> boo
         try:
             Base.metadata.create_all(bind=engine)
             return True
-        except SQLAlchemyError as exc:
+        except Exception as exc:
             logger.warning(
                 "Database initialization attempt %s/%s failed: %s",
                 attempt,
@@ -63,17 +78,26 @@ if settings.CORS_ALLOW_ORIGIN_REGEX:
 
 app.add_middleware(CORSMiddleware, **cors_kwargs)
 
-# Include routers
-app.include_router(
-    auth.router,
-    prefix=f"{settings.API_V1_STR}/auth",
-    tags=["Authentication"]
-)
-app.include_router(
-    clinical.router,
-    prefix=f"{settings.API_V1_STR}",
-    tags=["Clinical"]
-)
+# Include routers (guarded to keep base health endpoints available)
+try:
+    from app.api.endpoints import auth
+    app.include_router(
+        auth.router,
+        prefix=f"{settings.API_V1_STR}/auth",
+        tags=["Authentication"]
+    )
+except Exception as exc:
+    logger.exception("Failed to include auth router: %s", exc)
+
+try:
+    from app.api.endpoints import clinical
+    app.include_router(
+        clinical.router,
+        prefix=f"{settings.API_V1_STR}",
+        tags=["Clinical"]
+    )
+except Exception as exc:
+    logger.exception("Failed to include clinical router: %s", exc)
 
 
 @app.on_event("startup")
@@ -81,6 +105,10 @@ def startup_seed_data():
     db_ready = ensure_database_ready()
     if not db_ready:
         logger.error("Database is not ready after retries; API will start but DB-dependent routes may fail.")
+        return
+
+    if SessionLocal is None:
+        logger.error("SessionLocal unavailable; skipping seed initialization")
         return
 
     db = SessionLocal()
@@ -116,6 +144,17 @@ async def health_check():
 @app.get("/health/db")
 async def health_db_check():
     """Database connectivity health endpoint"""
+    if engine is None:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": "database_module_import_failed",
+                "details": str(db_startup_error) if db_startup_error else "unknown",
+            },
+        )
+
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
@@ -133,5 +172,6 @@ async def health_db_check():
                 "status": "unhealthy",
                 "database": "disconnected",
                 "error": "database_connection_failed",
+                "details": str(exc),
             },
         )
