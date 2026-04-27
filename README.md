@@ -73,16 +73,7 @@ Compulysis is not intended to be:
 - `backend/` - FastAPI application and services
 - `docker-compose.yml` - local orchestration
 - `Dockerfile` - container image build
-- `DOCKER_AWS_GUIDE.md` - Docker and AWS deployment notes
-- `DEPLOY_VERCEL.md` - Vercel deployment notes
 
-## Local development
-
-The repository includes separate frontend and backend applications. In short:
-
-1. Start PostgreSQL and configure `DATABASE_URL`.
-2. Run the backend from `backend/`.
-3. Run the frontend from `frontend/` with `VITE_API_URL` pointing at the backend API.
 
 The frontend README in [frontend/README.md](frontend/README.md) has the current setup steps and default seeded credentials.
 
