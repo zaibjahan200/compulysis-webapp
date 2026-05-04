@@ -19,8 +19,8 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 public abstract class SeleniumTestBase {
     protected static final String BASE_URL = System.getProperty("baseUrl", "http://host.docker.internal:8004");
     protected static final String BACKEND_HEALTH_URL = System.getProperty("backendHealthUrl", "http://host.docker.internal:8003/health");
-    protected static final String TEST_EMAIL = "psychologist@compulysis.com";
-    protected static final String TEST_PASSWORD = "password123";
+    protected static final String TEST_EMAIL = "test@compulysis.com";
+    protected static final String TEST_PASSWORD = "test1234";
 
     protected WebDriver driver;
 
