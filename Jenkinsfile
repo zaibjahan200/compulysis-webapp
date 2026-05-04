@@ -33,12 +33,18 @@ pipeline {
                         fi
                     done
 
+                    # Get the host IP for docker container to reach services
+                    HOST_IP=$(ip route | grep default | awk '{print $3}')
+                    if [ -z "$HOST_IP" ]; then
+                        HOST_IP="172.17.0.1"
+                    fi
+
                     docker run --rm \
                         --add-host=host.docker.internal:host-gateway \
                         -v "$WORKSPACE/tests:/workspace" \
                         -w /workspace \
-                        -e baseUrl=http://host.docker.internal:8004 \
-                        -e backendHealthUrl=http://host.docker.internal:8003/health \
+                        -e baseUrl=http://${HOST_IP}:8004 \
+                        -e backendHealthUrl=http://${HOST_IP}:8003/health \
                         markhobson/maven-chrome:latest \
                         mvn clean test --batch-mode --no-transfer-progress
                 '''
