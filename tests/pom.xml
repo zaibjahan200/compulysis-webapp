@@ -29,13 +29,6 @@
             <version>${selenium.version}</version>
             <scope>test</scope>
         </dependency>
-        <!-- Chrome DevTools Protocol for Chrome 147 -->
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-devtools-v147</artifactId>
-            <version>${selenium.version}</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
