@@ -116,7 +116,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-500 via-primary-600 to-secondary-600 flex items-center justify-center p-4">
+    <div data-testid="login-page" className="min-h-screen bg-gradient-to-br from-primary-500 via-primary-600 to-secondary-600 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="text-center mb-8 animate-fade-in">
@@ -133,6 +133,7 @@ const Login = () => {
           {/* Tabs */}
           <div className="flex border-b border-gray-200">
             <button
+              data-testid="login-tab"
               onClick={() => {
                 setActiveTab('login');
                 setError('');
@@ -147,6 +148,7 @@ const Login = () => {
               Login
             </button>
             <button
+              data-testid="register-tab"
               onClick={() => {
                 setActiveTab('register');
                 setError('');
@@ -165,7 +167,7 @@ const Login = () => {
           <div className="p-8">
             {/* Error Message */}
             {error && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start animate-slide-up">
+              <div data-testid="auth-error" className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start animate-slide-up">
                 <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
@@ -173,7 +175,7 @@ const Login = () => {
 
             {/* Success Message */}
             {success && (
-              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start animate-slide-up">
+              <div data-testid="auth-success" className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start animate-slide-up">
                 <AlertCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-green-700">{success}</p>
               </div>
@@ -191,6 +193,7 @@ const Login = () => {
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="login-email"
                       type="email"
                       name="email"
                       value={loginData.email}
@@ -207,6 +210,7 @@ const Login = () => {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="login-password"
                       type={showPassword ? 'text' : 'password'}
                       name="password"
                       value={loginData.password}
@@ -216,6 +220,7 @@ const Login = () => {
                       required
                     />
                     <button
+                      data-testid="toggle-login-password"
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -231,6 +236,7 @@ const Login = () => {
                     <span className="ml-2 text-sm text-gray-600">Remember me</span>
                   </label>
                   <button
+                    data-testid="forgot-password-tab"
                     type="button"
                     onClick={() => setActiveTab('forgot')}
                     className="text-sm text-primary-600 hover:text-primary-700 font-medium"
@@ -239,7 +245,7 @@ const Login = () => {
                   </button>
                 </div>
 
-                <button type="submit" disabled={loading} className="btn-primary w-full">
+                <button data-testid="login-submit" type="submit" disabled={loading} className="btn-primary w-full">
                   {loading ? (
                     <span className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
@@ -264,6 +270,7 @@ const Login = () => {
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="register-name"
                       type="text"
                       name="name"
                       value={registerData.name}
@@ -280,6 +287,7 @@ const Login = () => {
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="register-email"
                       type="email"
                       name="email"
                       value={registerData.email}
@@ -297,6 +305,7 @@ const Login = () => {
                     <div className="relative">
                       <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
+                        data-testid="register-license-number"
                         type="text"
                         name="licenseNumber"
                         value={registerData.licenseNumber}
@@ -310,6 +319,7 @@ const Login = () => {
                   <div>
                     <label className="form-label">Specialization</label>
                     <select
+                      data-testid="register-specialization"
                       name="specialization"
                       value={registerData.specialization}
                       onChange={handleRegisterChange}
@@ -331,6 +341,7 @@ const Login = () => {
                   <div className="relative">
                     <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="register-institution"
                       type="text"
                       name="institution"
                       value={registerData.institution}
@@ -347,6 +358,7 @@ const Login = () => {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="register-password"
                       type={showPassword ? 'text' : 'password'}
                       name="password"
                       value={registerData.password}
@@ -356,6 +368,7 @@ const Login = () => {
                       required
                     />
                     <button
+                      data-testid="toggle-register-password"
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -370,6 +383,7 @@ const Login = () => {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="register-confirm-password"
                       type={showConfirmPassword ? 'text' : 'password'}
                       name="confirmPassword"
                       value={registerData.confirmPassword}
@@ -379,6 +393,7 @@ const Login = () => {
                       required
                     />
                     <button
+                      data-testid="toggle-register-confirm-password"
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -388,7 +403,7 @@ const Login = () => {
                   </div>
                 </div>
 
-                <button type="submit" disabled={loading} className="btn-primary w-full mt-6">
+                <button data-testid="register-submit" type="submit" disabled={loading} className="btn-primary w-full mt-6">
                   {loading ? (
                     <span className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
@@ -403,7 +418,7 @@ const Login = () => {
 
             {/* Forgot Password Form */}
             {activeTab === 'forgot' && (
-              <form onSubmit={handleForgotPasswordSubmit} className="space-y-5">
+              <form data-testid="forgot-password-form" onSubmit={handleForgotPasswordSubmit} className="space-y-5">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800 mb-2">
                     Reset Password
@@ -418,6 +433,7 @@ const Login = () => {
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      data-testid="forgot-email"
                       type="email"
                       name="email"
                       value={forgotPasswordData.email}
@@ -429,7 +445,7 @@ const Login = () => {
                   </div>
                 </div>
 
-                <button type="submit" disabled={loading} className="btn-primary w-full">
+                <button data-testid="forgot-submit" type="submit" disabled={loading} className="btn-primary w-full">
                   {loading ? (
                     <span className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>

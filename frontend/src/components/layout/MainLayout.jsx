@@ -33,6 +33,7 @@ const MainLayout = ({ children }) => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Sidebar */}
       <aside
+        data-testid="sidebar"
         className={`fixed top-0 left-0 z-40 h-screen transition-transform ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } bg-gradient-to-b from-primary-600 to-secondary-600 shadow-2xl`}
@@ -69,6 +70,7 @@ const MainLayout = ({ children }) => {
               
               return (
                 <NavLink
+                  data-testid={`nav-${item.path === '/' ? 'dashboard' : item.path.replace('/', '')}`}
                   key={item.path}
                   to={item.path}
                   className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
@@ -86,6 +88,7 @@ const MainLayout = ({ children }) => {
 
           {/* Logout Button */}
           <button
+            data-testid="logout-button"
             onClick={logout}
             className="flex items-center px-4 py-3 mt-8 w-full text-white hover:bg-white/10 rounded-lg transition-all duration-200"
           >
@@ -101,6 +104,7 @@ const MainLayout = ({ children }) => {
         <header className="bg-white shadow-md sticky top-0 z-30">
           <div className="flex items-center justify-between px-6 py-4">
             <button
+              data-testid="sidebar-toggle"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >

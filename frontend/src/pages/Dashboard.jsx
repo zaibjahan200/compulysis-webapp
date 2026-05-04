@@ -84,7 +84,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div data-testid="dashboard-page" className="space-y-6 animate-fade-in">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>

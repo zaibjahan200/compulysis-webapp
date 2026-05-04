@@ -287,7 +287,7 @@ const ModelLab = () => {
   const maxImportance = Math.max(...featureImportanceData.map((item) => item.importance), 0.01);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div data-testid="model-lab-page" className="space-y-6 animate-fade-in">
       {/* Header */}
       <div>
         <h1 className="text-4xl font-bold mb-2 flex items-center gap-2">

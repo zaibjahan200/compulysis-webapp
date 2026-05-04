@@ -134,7 +134,7 @@ const Assessment = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+    <div data-testid="assessment-page" className="max-w-6xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
