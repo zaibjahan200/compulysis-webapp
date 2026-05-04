@@ -1,22 +1,18 @@
 // =============================================================================
 // Jenkinsfile — Compulysis CI Pipeline
 //
-// Changes vs original:
-//   1. Build test runner image from tests/Dockerfile (Chrome 124 + Selenium 4.23)
-//      instead of the incompatible markhobson/maven-chrome:latest (Chrome 91).
-//   2. git safe.directory is set BEFORE trying to read the committer email.
-//   3. emailext falls back gracefully when committer cannot be determined
-//      (instead of hard-erroring and swallowing the test report).
-//   4. Maven is called with -Dwebdriver.chrome.driver so ChromeDriver path
-//      is always explicit inside the container.
-//   5. docker run now mounts the Maven cache for faster repeated builds.
+// Python-based Selenium test flow:
+//   1. Build a dedicated Python + Chrome + ChromeDriver test image from tests/Dockerfile.
+//   2. Start the app stack with docker compose.
+//   3. Run pytest inside the container and emit JUnit XML for Jenkins.
+//   4. Publish the pytest report and email the committer with a summary.
 // =============================================================================
 
 pipeline {
     agent any
 
     environment {
-        // Image tag for the test runner — built from tests/Dockerfile.
+        // Image tag for the Python test runner — built from tests/Dockerfile.
         // Using a build-number tag so each build gets a clean image.
         TEST_IMAGE = "compulysis-test-runner:${BUILD_NUMBER}"
 
@@ -27,16 +23,16 @@ pipeline {
     stages {
 
         // ── Stage 1: Build the test runner image ──────────────────────────────
-        // We build from tests/Dockerfile so we control the exact Chrome +
-        // ChromeDriver + Selenium version. This eliminates the CDP mismatch.
+        // We build from tests/Dockerfile so we control the exact Python +
+        // Chrome + ChromeDriver versions.
         stage('Build Test Image') {
             steps {
                 sh '''
                     docker build \
                         --no-cache \
                         -t ${TEST_IMAGE} \
-                        -f tests/Dockerfile \
-                        tests/
+                        -f Dockerfile.test \
+                        .
                 '''
             }
         }
@@ -92,24 +88,27 @@ pipeline {
                     fi
                     echo "Frontend is available."
 
-                    # ── Run Selenium tests ────────────────────────────────────
+                    # ── Run pytest Selenium tests ──────────────────────────────
                     # Key flags:
-                    #   --add-host  lets the container reach the host's ports
-                    #   -v maven cache  speeds up subsequent builds
-                    #   -e WEBDRIVER_CHROME_DRIVER  points to pre-installed driver
+                    #   --add-host lets the container reach the host's ports
                     docker run --rm \
                         --add-host=host.docker.internal:host-gateway \
-                        -v "${WORKSPACE}/tests:/workspace" \
-                        -v "${HOME}/.m2:/root/.m2" \
+                        -v "${WORKSPACE}/selenium_tests:/workspace" \
+                        --shm-size=1g \
                         -w /workspace \
-                        -e WEBDRIVER_CHROME_DRIVER=/usr/local/bin/chromedriver \
+                        -e BASE_URL=http://host.docker.internal:8004 \
+                        -e BACKEND_HEALTH_URL=http://host.docker.internal:8003/health \
+                        -e CHROME_BINARY=/usr/bin/google-chrome \
+                        -e CHROMEDRIVER_PATH=/usr/local/bin/chromedriver \
                         ${TEST_IMAGE} \
-                        mvn clean test \
-                            -DbaseUrl=http://host.docker.internal:8004 \
-                            -DbackendHealthUrl=http://host.docker.internal:8003/health \
-                            -Dwebdriver.chrome.driver=/usr/local/bin/chromedriver \
-                            --batch-mode --no-transfer-progress
+                        python -m pytest test_suite.py --junitxml=reports/junit.xml
                 '''
+            }
+        }
+
+        stage('Publish Test Results') {
+            steps {
+                junit allowEmptyResults: true, testResults: 'selenium_tests/reports/junit.xml'
             }
         }
 
@@ -139,7 +138,7 @@ pipeline {
                 }
 
                 // ── Parse surefire XML reports ─────────────────────────────────
-                def reportFiles = findFiles(glob: 'tests/target/surefire-reports/*.xml')
+                def reportFiles = findFiles(glob: 'selenium_tests/reports/junit.xml')
                 def total   = 0
                 def passed  = 0
                 def failed  = 0
@@ -151,7 +150,7 @@ pipeline {
                         def xmlText = readFile(file.path)
                         def xml     = new XmlSlurper().parseText(xmlText)
 
-                        xml.testcase.each { testcase ->
+                        xml.depthFirst().findAll { node -> node.name() == 'testcase' }.each { testcase ->
                             total++
                             def name      = testcase.@name.text()      ?: 'Unknown'
                             def classname = testcase.@classname.text() ?: ''
@@ -233,8 +232,8 @@ pipeline {
   </table>
 
   <p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">
-    Jenkins URL: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a><br/>
-    Chrome 124 + ChromeDriver 124 + Selenium 4.23.1
+        Jenkins URL: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a><br/>
+        Python + Chrome + ChromeDriver + Selenium
   </p>
 
 </div>
