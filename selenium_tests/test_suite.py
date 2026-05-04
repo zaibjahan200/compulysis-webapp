@@ -15,12 +15,13 @@ class CompulysisTests(unittest.TestCase):
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
         
         # Initialize the webdriver
         cls.driver = webdriver.Chrome(options=chrome_options)
         cls.driver.implicitly_wait(15)
         # Fallback to local if env var not set
-        cls.base_url = os.getenv("TEST_URL", "http://16.16.16.219:8004")
+        cls.base_url = os.getenv("BASE_URL", "http://16.16.16.219:8004")
         cls.wait = WebDriverWait(cls.driver, 20)
 
     @classmethod
