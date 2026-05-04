@@ -1,7 +1,47 @@
+// =============================================================================
+// Jenkinsfile — Compulysis CI Pipeline
+//
+// Changes vs original:
+//   1. Build test runner image from tests/Dockerfile (Chrome 124 + Selenium 4.23)
+//      instead of the incompatible markhobson/maven-chrome:latest (Chrome 91).
+//   2. git safe.directory is set BEFORE trying to read the committer email.
+//   3. emailext falls back gracefully when committer cannot be determined
+//      (instead of hard-erroring and swallowing the test report).
+//   4. Maven is called with -Dwebdriver.chrome.driver so ChromeDriver path
+//      is always explicit inside the container.
+//   5. docker run now mounts the Maven cache for faster repeated builds.
+// =============================================================================
+
 pipeline {
     agent any
 
+    environment {
+        // Image tag for the test runner — built from tests/Dockerfile.
+        // Using a build-number tag so each build gets a clean image.
+        TEST_IMAGE = "compulysis-test-runner:${BUILD_NUMBER}"
+
+        // Fallback recipient if git log cannot find the committer.
+        FALLBACK_EMAIL = "jahanzaibparacha.32@gmail.com"  // ← change this to your team email
+    }
+
     stages {
+
+        // ── Stage 1: Build the test runner image ──────────────────────────────
+        // We build from tests/Dockerfile so we control the exact Chrome +
+        // ChromeDriver + Selenium version. This eliminates the CDP mismatch.
+        stage('Build Test Image') {
+            steps {
+                sh '''
+                    docker build \
+                        --no-cache \
+                        -t ${TEST_IMAGE} \
+                        -f tests/Dockerfile \
+                        tests/
+                '''
+            }
+        }
+
+        // ── Stage 2: Start the application ────────────────────────────────────
         stage('Build') {
             steps {
                 sh 'docker compose down --remove-orphans || true'
@@ -10,173 +50,222 @@ pipeline {
             }
         }
 
+        // ── Stage 3: Wait for health + run Selenium tests ─────────────────────
         stage('Test') {
             steps {
                 sh '''
                     set -e
 
-                    for target in http://localhost:8003/health http://localhost:8004; do
-                        echo "Waiting for ${target}"
-                        ready=false
-
-                        for attempt in $(seq 1 30); do
-                            if curl -fsS "${target}" >/dev/null; then
-                                ready=true
-                                break
-                            fi
-                            sleep 5
-                        done
-
-                        if [ "${ready}" != "true" ]; then
-                            echo "Timed out waiting for ${target}"
-                            exit 1
+                    # ── Wait for backend health endpoint ──────────────────────
+                    echo "Waiting for backend at http://localhost:8003/health ..."
+                    ready=false
+                    for attempt in $(seq 1 36); do
+                        if curl -fsS "http://localhost:8003/health" >/dev/null 2>&1; then
+                            ready=true
+                            break
                         fi
+                        echo "  attempt ${attempt}/36 — sleeping 5s"
+                        sleep 5
                     done
+                    if [ "${ready}" != "true" ]; then
+                        echo "ERROR: Backend did not become healthy within 3 minutes."
+                        docker compose logs backend
+                        exit 1
+                    fi
+                    echo "Backend is healthy."
 
+                    # ── Wait for frontend ─────────────────────────────────────
+                    echo "Waiting for frontend at http://localhost:8004 ..."
+                    ready=false
+                    for attempt in $(seq 1 12); do
+                        if curl -fsS "http://localhost:8004" >/dev/null 2>&1; then
+                            ready=true
+                            break
+                        fi
+                        echo "  attempt ${attempt}/12 — sleeping 5s"
+                        sleep 5
+                    done
+                    if [ "${ready}" != "true" ]; then
+                        echo "ERROR: Frontend did not become available within 1 minute."
+                        docker compose logs frontend
+                        exit 1
+                    fi
+                    echo "Frontend is available."
+
+                    # ── Run Selenium tests ────────────────────────────────────
+                    # Key flags:
+                    #   --add-host  lets the container reach the host's ports
+                    #   -v maven cache  speeds up subsequent builds
+                    #   -e WEBDRIVER_CHROME_DRIVER  points to pre-installed driver
                     docker run --rm \
                         --add-host=host.docker.internal:host-gateway \
-                        -v "$WORKSPACE/tests:/workspace" \
+                        -v "${WORKSPACE}/tests:/workspace" \
+                        -v "${HOME}/.m2:/root/.m2" \
                         -w /workspace \
-                        markhobson/maven-chrome:latest \
+                        -e WEBDRIVER_CHROME_DRIVER=/usr/local/bin/chromedriver \
+                        ${TEST_IMAGE} \
                         mvn clean test \
-                          -DbaseUrl=http://host.docker.internal:8004 \
-                          -DbackendHealthUrl=http://host.docker.internal:8003/health \
-                          --batch-mode --no-transfer-progress
+                            -DbaseUrl=http://host.docker.internal:8004 \
+                            -DbackendHealthUrl=http://host.docker.internal:8003/health \
+                            -Dwebdriver.chrome.driver=/usr/local/bin/chromedriver \
+                            --batch-mode --no-transfer-progress
                 '''
             }
         }
-    }
+
+    } // end stages
 
     post {
         always {
             script {
-                sh "git config --global --add safe.directory ${env.WORKSPACE} || true"
+                // ── Set safe.directory so git commands work in Jenkins workspace ──
+                sh "git config --global --add safe.directory '${env.WORKSPACE}' || true"
 
-                def committer = sh(
-                    script: "git log -1 --pretty=format:%ae",
-                    returnStdout: true
-                ).trim()
-
-                if (!committer) {
-                    error('Unable to determine committer email for test report delivery.')
+                // ── Determine recipient email ──────────────────────────────────
+                def committer = ""
+                try {
+                    committer = sh(
+                        script: "git log -1 --pretty=format:%ae 2>/dev/null || true",
+                        returnStdout: true
+                    ).trim()
+                } catch (Exception e) {
+                    echo "WARNING: Could not read committer email — ${e.message}"
                 }
 
+                // Fall back to env var or hard-coded address rather than crashing.
+                if (!committer) {
+                    committer = env.FALLBACK_EMAIL ?: "devops@example.com"
+                    echo "Using fallback recipient: ${committer}"
+                }
+
+                // ── Parse surefire XML reports ─────────────────────────────────
                 def reportFiles = findFiles(glob: 'tests/target/surefire-reports/*.xml')
-                def total = 0
-                def passed = 0
-                def failed = 0
+                def total   = 0
+                def passed  = 0
+                def failed  = 0
                 def skipped = 0
-                def rows = []
+                def rows    = []
 
                 reportFiles.each { file ->
-                    def xmlText = readFile(file.path)
-                    def xml = new XmlSlurper().parseText(xmlText)
+                    try {
+                        def xmlText = readFile(file.path)
+                        def xml     = new XmlSlurper().parseText(xmlText)
 
-                    xml.testcase.each { testcase ->
-                        total++
+                        xml.testcase.each { testcase ->
+                            total++
+                            def name      = testcase.@name.text()      ?: 'Unknown'
+                            def classname = testcase.@classname.text() ?: ''
+                            def status    = 'PASSED'
 
-                        def name = testcase.@name.text() ?: 'Unknown test'
-                        def classname = testcase.@classname.text()
-                        def status = 'PASSED'
-                        def symbol = 'PASSED'
+                            if (testcase.failure.size() > 0 || testcase.error.size() > 0) {
+                                failed++
+                                status = 'FAILED'
+                            } else if (testcase.skipped.size() > 0) {
+                                skipped++
+                                status = 'SKIPPED'
+                            } else {
+                                passed++
+                            }
 
-                        if (testcase.failure.size() > 0 || testcase.error.size() > 0) {
-                            failed++
-                            status = 'FAILED'
-                            symbol = 'FAILED'
-                        } else if (testcase.skipped.size() > 0) {
-                            skipped++
-                            status = 'SKIPPED'
-                            symbol = 'SKIPPED'
-                        } else {
-                            passed++
+                            rows << [
+                                name:      name,
+                                classname: classname,
+                                status:    status,
+                                file:      file.name
+                            ]
                         }
-
-                        rows << [
-                            name: name,
-                            classname: classname,
-                            status: status,
-                            symbol: symbol,
-                            file: file.name
-                        ]
+                    } catch (Exception parseEx) {
+                        echo "WARNING: Could not parse ${file.path} — ${parseEx.message}"
                     }
                 }
 
+                // ── Build HTML report ──────────────────────────────────────────
+                def statusColor = (failed > 0) ? '#b91c1c' : '#15803d'
+
                 def rowsHtml = rows.collect { row ->
-                    """
-                    <tr>
-                        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.symbol}: ${row.name}</td>
-                        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.classname}</td>
-                        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.status}</td>
-                        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.file}</td>
-                    </tr>
-                    """.stripIndent().trim()
+                    def color = row.status == 'FAILED'  ? '#b91c1c'
+                              : row.status == 'SKIPPED' ? '#a16207'
+                              :                           '#15803d'
+                    """<tr>
+                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;">${row.name}</td>
+                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;">${row.classname}</td>
+                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;color:${color};font-weight:bold;">${row.status}</td>
+                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;">${row.file}</td>
+                    </tr>"""
                 }.join('\n')
 
+                if (!rowsHtml) {
+                    rowsHtml = '<tr><td colspan="4" style="padding:12px;color:#6b7280;">No JUnit XML results were found — the test run may have failed before tests executed.</td></tr>'
+                }
+
                 def emailBody = """
-                    <html>
-                        <body style="font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#111827;line-height:1.5;">
-                            <div style="max-width:860px;margin:0 auto;padding:24px;">
-                                <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;">
-                                    <h2 style="margin:0 0 12px;color:#0f172a;">Selenium Test Execution Report</h2>
+<html>
+<body style="font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#111827;line-height:1.6;">
+<div style="max-width:900px;margin:0 auto;padding:24px;">
+<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:28px;">
 
-                                    <p>
-                                        Build <strong>#${env.BUILD_NUMBER}</strong> finished with status
-                                        <strong>${currentBuild.currentResult}</strong>.
-                                    </p>
+  <h2 style="margin:0 0 8px;color:#0f172a;">Compulysis — Selenium Test Report</h2>
+  <p style="margin:0 0 20px;color:#475569;">
+    Build <strong>#${env.BUILD_NUMBER}</strong> &nbsp;|&nbsp;
+    Status: <strong style="color:${statusColor};">${currentBuild.currentResult}</strong>
+  </p>
 
-                                    <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">
-                                        <tr>
-                                            <td style="padding:10px 12px;background:#f1f5f9;font-weight:bold;">Total Tests</td>
-                                            <td style="padding:10px 12px;background:#f8fafc;">${total}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding:10px 12px;background:#f1f5f9;font-weight:bold;">Passed</td>
-                                            <td style="padding:10px 12px;background:#f8fafc;color:#15803d;">${passed}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding:10px 12px;background:#f1f5f9;font-weight:bold;">Failed</td>
-                                            <td style="padding:10px 12px;background:#f8fafc;color:#b91c1c;">${failed}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding:10px 12px;background:#f1f5f9;font-weight:bold;">Skipped</td>
-                                            <td style="padding:10px 12px;background:#f8fafc;color:#a16207;">${skipped}</td>
-                                        </tr>
-                                    </table>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
+    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;width:40%;">Total</td>   <td style="padding:9px 12px;">${total}</td></tr>
+    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;">Passed</td>  <td style="padding:9px 12px;color:#15803d;font-weight:bold;">${passed}</td></tr>
+    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;">Failed</td>  <td style="padding:9px 12px;color:#b91c1c;font-weight:bold;">${failed}</td></tr>
+    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;">Skipped</td> <td style="padding:9px 12px;color:#a16207;font-weight:bold;">${skipped}</td></tr>
+  </table>
 
-                                    <h3>Detailed Results</h3>
+  <h3 style="margin:0 0 12px;color:#0f172a;">Individual Results</h3>
+  <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;font-size:13px;">
+    <thead>
+      <tr style="background:#0f172a;color:#fff;">
+        <th style="text-align:left;padding:9px 12px;">Test Name</th>
+        <th style="text-align:left;padding:9px 12px;">Class</th>
+        <th style="text-align:left;padding:9px 12px;">Status</th>
+        <th style="text-align:left;padding:9px 12px;">Report File</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+    </tbody>
+  </table>
 
-                                    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
-                                        <thead>
-                                            <tr style="background:#0f172a;color:#ffffff;">
-                                                <th style="text-align:left;padding:10px 12px;">Test</th>
-                                                <th style="text-align:left;padding:10px 12px;">Class</th>
-                                                <th style="text-align:left;padding:10px 12px;">Status</th>
-                                                <th style="text-align:left;padding:10px 12px;">Report File</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${rowsHtml ?: '<tr><td colspan="4" style="padding:12px;">No JUnit results were found.</td></tr>'}
-                                        </tbody>
-                                    </table>
+  <p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">
+    Jenkins URL: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a><br/>
+    Chrome 124 + ChromeDriver 124 + Selenium 4.23.1
+  </p>
 
-                                    <p style="margin:20px 0 0;color:#475569;">
-                                        Jenkins Build URL: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a><br/>
-                                        Executed inside Docker using the Maven + Chrome image.
-                                    </p>
-                                </div>
-                            </div>
-                        </body>
-                    </html>
-                """.stripIndent().trim()
+</div>
+</div>
+</body>
+</html>
+""".stripIndent().trim()
 
-                emailext(
-                    to: committer,
-                    subject: "Selenium Build #${env.BUILD_NUMBER} - ${currentBuild.currentResult}",
-                    mimeType: 'text/html',
-                    body: emailBody
-                )
-            }
+                // ── Send email ─────────────────────────────────────────────────
+                try {
+                    emailext(
+                        to:       committer,
+                        subject:  "Compulysis Build #${env.BUILD_NUMBER} — ${currentBuild.currentResult}",
+                        mimeType: 'text/html',
+                        body:     emailBody
+                    )
+                    echo "Test report email sent to: ${committer}"
+                } catch (Exception mailEx) {
+                    echo "WARNING: Failed to send email — ${mailEx.message}"
+                    echo "Check that the Email Extension plugin is installed and SMTP is configured in Jenkins."
+                }
+
+            } // end script
+        } // end always
+
+        // ── Clean up: stop compose services ───────────────────────────────────
+        cleanup {
+            // sh 'docker compose down --remove-orphans || true'
+            sh "docker rmi ${env.TEST_IMAGE} || true"
         }
-    }
-}
+
+    } // end post
+
+} // end pipeline
