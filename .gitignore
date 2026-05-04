@@ -20,5 +20,10 @@ frontend/dist/
 Thumbs.db
 .vscode/
 
+# Build outputs
+target/
+**/target/
+*.class
+
 
 scripts/
