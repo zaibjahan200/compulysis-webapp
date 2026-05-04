@@ -2,11 +2,10 @@ pipeline {
     agent any
 
     stages {
-        stage('build') {
+        stage('Build') {
             steps {
-                // Jenkins already checks out the repo in the workspace.
                 sh 'docker compose down --remove-orphans || true'
-                sh 'docker compose pull'
+                sh 'docker compose pull || true'
                 sh 'docker compose up -d --remove-orphans'
             }
         }
@@ -19,6 +18,7 @@ pipeline {
                     for target in http://localhost:8003/health http://localhost:8004; do
                         echo "Waiting for ${target}"
                         ready=false
+
                         for attempt in $(seq 1 30); do
                             if curl -fsS "${target}" >/dev/null; then
                                 ready=true
@@ -33,27 +33,16 @@ pipeline {
                         fi
                     done
 
-                    # Get the host IP for docker container to reach services
-                    HOST_IP=$(ip route | grep default | awk '{print $3}')
-                    if [ -z "$HOST_IP" ]; then
-                        HOST_IP="172.17.0.1"
-                    fi
-
                     docker run --rm \
                         --add-host=host.docker.internal:host-gateway \
                         -v "$WORKSPACE/tests:/workspace" \
                         -w /workspace \
-                        -e baseUrl=http://${HOST_IP}:8004 \
-                        -e backendHealthUrl=http://${HOST_IP}:8003/health \
                         markhobson/maven-chrome:latest \
-                        mvn clean test --batch-mode --no-transfer-progress
+                        mvn clean test \
+                          -DbaseUrl=http://host.docker.internal:8004 \
+                          -DbackendHealthUrl=http://host.docker.internal:8003/health \
+                          --batch-mode --no-transfer-progress
                 '''
-            }
-        }
-
-        stage('Publish Test Results') {
-            steps {
-                junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
             }
         }
     }
@@ -80,23 +69,25 @@ pipeline {
                 def rows = []
 
                 reportFiles.each { file ->
-                    def xml = new XmlSlurper().parse(new File(file.path))
+                    def xmlText = readFile(file.path)
+                    def xml = new XmlSlurper().parseText(xmlText)
+
                     xml.testcase.each { testcase ->
                         total++
 
                         def name = testcase.@name.text() ?: 'Unknown test'
                         def classname = testcase.@classname.text()
                         def status = 'PASSED'
-                        def symbol = '✅'
+                        def symbol = 'PASSED'
 
-                        if (testcase.failure.size() > 0) {
+                        if (testcase.failure.size() > 0 || testcase.error.size() > 0) {
                             failed++
                             status = 'FAILED'
-                            symbol = '❌'
+                            symbol = 'FAILED'
                         } else if (testcase.skipped.size() > 0) {
                             skipped++
                             status = 'SKIPPED'
-                            symbol = '⏭'
+                            symbol = 'SKIPPED'
                         } else {
                             passed++
                         }
@@ -106,7 +97,7 @@ pipeline {
                             classname: classname,
                             status: status,
                             symbol: symbol,
-                            file: file.name,
+                            file: file.name
                         ]
                     }
                 }
@@ -114,7 +105,7 @@ pipeline {
                 def rowsHtml = rows.collect { row ->
                     """
                     <tr>
-                        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.symbol} ${row.name}</td>
+                        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.symbol}: ${row.name}</td>
                         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.classname}</td>
                         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.status}</td>
                         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${row.file}</td>
@@ -126,10 +117,12 @@ pipeline {
                     <html>
                         <body style="font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#111827;line-height:1.5;">
                             <div style="max-width:860px;margin:0 auto;padding:24px;">
-                                <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                                <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;">
                                     <h2 style="margin:0 0 12px;color:#0f172a;">Selenium Test Execution Report</h2>
-                                    <p style="margin:0 0 18px;color:#475569;">
-                                        Build <strong>#${env.BUILD_NUMBER}</strong> finished with status <strong>${currentBuild.currentResult}</strong>.
+
+                                    <p>
+                                        Build <strong>#${env.BUILD_NUMBER}</strong> finished with status
+                                        <strong>${currentBuild.currentResult}</strong>.
                                     </p>
 
                                     <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">
@@ -151,8 +144,9 @@ pipeline {
                                         </tr>
                                     </table>
 
-                                    <h3 style="margin:0 0 12px;color:#0f172a;">Detailed Results</h3>
-                                    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+                                    <h3>Detailed Results</h3>
+
+                                    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;">
                                         <thead>
                                             <tr style="background:#0f172a;color:#ffffff;">
                                                 <th style="text-align:left;padding:10px 12px;">Test</th>
@@ -185,5 +179,4 @@ pipeline {
             }
         }
     }
-
 }
