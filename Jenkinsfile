@@ -12,9 +12,8 @@ pipeline {
     agent any
 
     environment {
-        // Image tag for the Python test runner — built from tests/Dockerfile.
-        // Using a build-number tag so each build gets a clean image.
-        TEST_IMAGE = "compulysis-test-runner:${BUILD_NUMBER}"
+        // Pre-built image from Docker Hub
+        TEST_IMAGE = "zaibjahan200/compulysis-test-runner:latest"
 
         // Fallback recipient if git log cannot find the committer.
         FALLBACK_EMAIL = "jahanzaibparacha.32@gmail.com"  // ← change this to your team email
@@ -22,20 +21,7 @@ pipeline {
 
     stages {
 
-        // ── Stage 1: Build the test runner image ──────────────────────────────
-        // We build from tests/Dockerfile so we control the exact Python +
-        // Chrome + ChromeDriver versions.
-        stage('Build Test Image') {
-            steps {
-                sh '''
-                    docker build \
-                        --no-cache \
-                        -t ${TEST_IMAGE} \
-                        -f Dockerfile.test \
-                        .
-                '''
-            }
-        }
+
 
         // ── Stage 2: Start the application ────────────────────────────────────
         stage('Build') {
@@ -262,7 +248,8 @@ pipeline {
         // ── Clean up: stop compose services ───────────────────────────────────
         cleanup {
             // sh 'docker compose down --remove-orphans || true'
-            sh "docker rmi ${env.TEST_IMAGE} || true"
+            // Image is cached from Docker Hub, no need to remove it
+            // sh "docker rmi ${env.TEST_IMAGE} || true"
         }
 
     } // end post
