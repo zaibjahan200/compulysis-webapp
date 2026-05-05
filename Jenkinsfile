@@ -245,12 +245,7 @@ pipeline {
             } // end script
         } // end always
 
-        // ── Clean up: stop compose services ───────────────────────────────────
-        cleanup {
-            // sh 'docker compose down --remove-orphans || true'
-            // Image is cached from Docker Hub, no need to remove it
-            // sh "docker rmi ${env.TEST_IMAGE} || true"
-        }
+
 
     } // end post
 
