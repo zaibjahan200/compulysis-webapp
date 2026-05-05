@@ -136,7 +136,7 @@ pipeline {
                         def xmlText = readFile(reportPath)
                         def xml     = new XmlSlurper().parseText(xmlText)
 
-                        xml.depthFirst().findAll { node -> node.name() == 'testcase' }.each { testcase ->
+                        xml.testsuite.testcase.each { testcase ->
                             total++
                             def name      = testcase.@name.text()      ?: 'Unknown'
                             def classname = testcase.@classname.text() ?: ''
