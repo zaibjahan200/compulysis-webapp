@@ -74,9 +74,7 @@ pipeline {
                     fi
                     echo "Frontend is available."
 
-                    # ── Run pytest Selenium tests ──────────────────────────────
-                    # Key flags:
-                    #   --add-host lets the container reach the host's ports
+                    # ── Run Python Selenium tests ──────────────────────────────
                     docker run --rm \
                         --add-host=host.docker.internal:host-gateway \
                         -v "${WORKSPACE}/selenium_tests:/workspace" \
@@ -87,14 +85,8 @@ pipeline {
                         -e CHROME_BINARY=/usr/bin/google-chrome \
                         -e CHROMEDRIVER_PATH=/usr/local/bin/chromedriver \
                         ${TEST_IMAGE} \
-                        python -m pytest test_suite.py --junitxml=reports/junit.xml
+                        bash -c "mkdir -p reports && chmod 777 reports && python test_suite.py > reports/test_output.txt 2>&1; EXIT_CODE=\$?; chmod 777 reports/test_output.txt || true; exit \$EXIT_CODE"
                 '''
-            }
-        }
-
-        stage('Publish Test Results') {
-            steps {
-                junit allowEmptyResults: true, testResults: 'selenium_tests/reports/junit.xml'
             }
         }
 
@@ -123,66 +115,12 @@ pipeline {
                     echo "Using fallback recipient: ${committer}"
                 }
 
-                // ── Parse surefire XML reports ─────────────────────────────────
-                def reportPath = 'selenium_tests/reports/junit.xml'
-                def total   = 0
-                def passed  = 0
-                def failed  = 0
-                def skipped = 0
-                def rows    = []
-
+                // ── Read text report ──────────────────────────────────────────
+                def reportPath = 'selenium_tests/reports/test_output.txt'
+                def logContent = "No test output found. The test run may have failed before tests executed."
+                
                 if (fileExists(reportPath)) {
-                    try {
-                        def xmlText = readFile(reportPath)
-                        def xml     = new XmlSlurper().parseText(xmlText)
-
-                        xml.testsuite.testcase.each { testcase ->
-                            total++
-                            def name      = testcase.@name.text()      ?: 'Unknown'
-                            def classname = testcase.@classname.text() ?: ''
-                            def status    = 'PASSED'
-
-                            if (testcase.failure.size() > 0 || testcase.error.size() > 0) {
-                                failed++
-                                status = 'FAILED'
-                            } else if (testcase.skipped.size() > 0) {
-                                skipped++
-                                status = 'SKIPPED'
-                            } else {
-                                passed++
-                            }
-
-                            rows << [
-                                name:      name,
-                                classname: classname,
-                                status:    status,
-                                file:      'junit.xml'
-                            ]
-                        }
-                    } catch (Exception parseEx) {
-                        echo "WARNING: Could not parse ${reportPath} — ${parseEx.message}"
-                    }
-                } else {
-                    echo "WARNING: ${reportPath} not found."
-                }
-
-                // ── Build HTML report ──────────────────────────────────────────
-                def statusColor = (failed > 0) ? '#b91c1c' : '#15803d'
-
-                def rowsHtml = rows.collect { row ->
-                    def color = row.status == 'FAILED'  ? '#b91c1c'
-                              : row.status == 'SKIPPED' ? '#a16207'
-                              :                           '#15803d'
-                    """<tr>
-                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;">${row.name}</td>
-                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;">${row.classname}</td>
-                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;color:${color};font-weight:bold;">${row.status}</td>
-                        <td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;">${row.file}</td>
-                    </tr>"""
-                }.join('\n')
-
-                if (!rowsHtml) {
-                    rowsHtml = '<tr><td colspan="4" style="padding:12px;color:#6b7280;">No JUnit XML results were found — the test run may have failed before tests executed.</td></tr>'
+                    logContent = readFile(reportPath)
                 }
 
                 def emailBody = """
@@ -194,30 +132,11 @@ pipeline {
   <h2 style="margin:0 0 8px;color:#0f172a;">Compulysis — Selenium Test Report</h2>
   <p style="margin:0 0 20px;color:#475569;">
     Build <strong>#${env.BUILD_NUMBER}</strong> &nbsp;|&nbsp;
-    Status: <strong style="color:${statusColor};">${currentBuild.currentResult}</strong>
+    Status: <strong>${currentBuild.currentResult}</strong>
   </p>
 
-  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
-    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;width:40%;">Total</td>   <td style="padding:9px 12px;">${total}</td></tr>
-    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;">Passed</td>  <td style="padding:9px 12px;color:#15803d;font-weight:bold;">${passed}</td></tr>
-    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;">Failed</td>  <td style="padding:9px 12px;color:#b91c1c;font-weight:bold;">${failed}</td></tr>
-    <tr><td style="padding:9px 12px;background:#f1f5f9;font-weight:bold;">Skipped</td> <td style="padding:9px 12px;color:#a16207;font-weight:bold;">${skipped}</td></tr>
-  </table>
-
-  <h3 style="margin:0 0 12px;color:#0f172a;">Individual Results</h3>
-  <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;font-size:13px;">
-    <thead>
-      <tr style="background:#0f172a;color:#fff;">
-        <th style="text-align:left;padding:9px 12px;">Test Name</th>
-        <th style="text-align:left;padding:9px 12px;">Class</th>
-        <th style="text-align:left;padding:9px 12px;">Status</th>
-        <th style="text-align:left;padding:9px 12px;">Report File</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rowsHtml}
-    </tbody>
-  </table>
+  <h3 style="margin:0 0 12px;color:#0f172a;">Console Output</h3>
+  <div style="background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;font-family:monospace;white-space:pre-wrap;font-size:13px;overflow-x:auto;">${logContent}</div>
 
   <p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">
         Jenkins URL: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a><br/>
