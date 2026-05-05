@@ -124,16 +124,16 @@ pipeline {
                 }
 
                 // ── Parse surefire XML reports ─────────────────────────────────
-                def reportFiles = findFiles(glob: 'selenium_tests/reports/junit.xml')
+                def reportPath = 'selenium_tests/reports/junit.xml'
                 def total   = 0
                 def passed  = 0
                 def failed  = 0
                 def skipped = 0
                 def rows    = []
 
-                reportFiles.each { file ->
+                if (fileExists(reportPath)) {
                     try {
-                        def xmlText = readFile(file.path)
+                        def xmlText = readFile(reportPath)
                         def xml     = new XmlSlurper().parseText(xmlText)
 
                         xml.depthFirst().findAll { node -> node.name() == 'testcase' }.each { testcase ->
@@ -156,12 +156,14 @@ pipeline {
                                 name:      name,
                                 classname: classname,
                                 status:    status,
-                                file:      file.name
+                                file:      'junit.xml'
                             ]
                         }
                     } catch (Exception parseEx) {
-                        echo "WARNING: Could not parse ${file.path} — ${parseEx.message}"
+                        echo "WARNING: Could not parse ${reportPath} — ${parseEx.message}"
                     }
+                } else {
+                    echo "WARNING: ${reportPath} not found."
                 }
 
                 // ── Build HTML report ──────────────────────────────────────────
