@@ -23,7 +23,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/compulysis_db
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production-min-32-chars}
       ENVIRONMENT: development
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:9000,http://127.0.0.1:9000}
       CORS_ALLOW_ORIGIN_REGEX: ""
     ports:
       - "8003:8000"
